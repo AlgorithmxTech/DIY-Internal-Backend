@@ -52,3 +52,18 @@ class FailedLoginAttempt(models.Model):
         indexes = [
             models.Index(fields=['email', 'ip_address', 'timestamp'])
         ]
+
+class PasswordResetToken(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    token = models.CharField(max_length=255, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['token']),
+            models.Index(fields=['user', 'expires_at'])
+        ]
+
+    def is_valid(self):
+        return timezone.now() <= self.expires_at

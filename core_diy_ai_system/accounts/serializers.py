@@ -2,8 +2,12 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
+from django.utils import timezone
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from .models import PasswordResetToken 
 
+
+# Accessing Accounts/Models.py
 User = get_user_model()
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
@@ -35,3 +39,41 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         data = super().validate(attrs)
         data['user'] = UserSerializer(self.user).data
         return data
+    
+class ForgotPasswordSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+    def validate_email(self, value):
+        try:
+            User.objects.get(email=value)
+            return value
+        except User.DoesNotExist:
+            raise serializers.ValidationError("No user found with this email address.")
+
+class ResetPasswordSerializer(serializers.Serializer):
+    token = serializers.CharField()
+    new_password = serializers.CharField(min_length=8, write_only=True)
+    confirm_password = serializers.CharField(write_only=True)
+
+    def validate(self, data):
+        if data['new_password'] != data['confirm_password']:
+            raise serializers.ValidationError("Passwords don't match")
+        
+        try:
+            token = PasswordResetToken.objects.get(
+                token=data['token'],
+                expires_at__gt=timezone.now()
+            )
+            data['user'] = token.user
+        except PasswordResetToken.DoesNotExist:
+            raise serializers.ValidationError("Invalid or expired reset token")
+        
+        return data
+
+    def save(self):
+        user = self.validated_data['user']
+        user.set_password(self.validated_data['new_password'])
+        user.save()
+        # Delete the used token
+        PasswordResetToken.objects.filter(user=user).delete()
+        return user

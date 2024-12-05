@@ -5,15 +5,21 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework.views import APIView
 from django.contrib.auth import get_user_model
+from django.utils import timezone
+from datetime import timedelta
+from django.conf import settings
+
 from .serializers import (
     UserRegistrationSerializer,
     UserSerializer,
-    CustomTokenObtainPairSerializer
+    CustomTokenObtainPairSerializer,
+    ForgotPasswordSerializer,
+    ResetPasswordSerializer
 )
-from .models import EmailVerificationToken
+
+from .models import EmailVerificationToken, PasswordResetToken
+
 import uuid
-from django.utils import timezone
-from datetime import timedelta
 
 # Create your views here.
 
@@ -74,3 +80,49 @@ class UserProfileView(generics.RetrieveUpdateAPIView):
 
     def get_object(self):
         return self.request.user
+
+class ForgotPasswordView(APIView):
+    permission_classes = (AllowAny,)
+    serializer_class = ForgotPasswordSerializer
+
+    def post(self, request):
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        email = serializer.validated_data['email']
+        user = User.objects.get(email=email)
+        
+        # Generate unique token
+        token = uuid.uuid4()
+        
+        # Save reset token
+        PasswordResetToken.objects.filter(user=user).delete()  # Remove existing tokens
+        reset_token = PasswordResetToken.objects.create(
+            user=user,
+            token=token,
+            expires_at=timezone.now() + timedelta(hours=24)
+        )
+        
+        # Generate reset link
+        reset_link = f"{settings.FRONTEND_URL}/reset-password/{token}"
+        
+        # Here you would typically send an email with the reset link
+        # For development, we'll return the link in the response
+        return Response({
+            'message': 'Password reset link has been sent to your email.',
+            'reset_link': reset_link  # Remove this in production
+        })
+
+class ResetPasswordView(APIView):
+    permission_classes = (AllowAny,)
+    serializer_class = ResetPasswordSerializer
+
+    def post(self, request):
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        serializer.save()
+        
+        return Response({
+            'message': 'Password has been reset successfully.'
+        })
