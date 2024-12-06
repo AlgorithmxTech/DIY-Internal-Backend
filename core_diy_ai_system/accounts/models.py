@@ -52,3 +52,66 @@ class FailedLoginAttempt(models.Model):
         indexes = [
             models.Index(fields=['email', 'ip_address', 'timestamp'])
         ]
+
+class PasswordResetToken(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    token = models.CharField(max_length=255, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['token']),
+            models.Index(fields=['user', 'expires_at'])
+        ]
+
+    def is_valid(self):
+        return timezone.now() <= self.expires_at
+
+
+class UserRegistrationInfo(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    ip_address = models.GenericIPAddressField()
+    user_agent = models.CharField(max_length=255)
+    registration_source = models.CharField(max_length=50, default='web')  # web, mobile, etc.
+    registration_status = models.CharField(
+        max_length=20,
+        choices=[
+            ('pending', 'Pending Verification'),
+            ('verified', 'Email Verified'),
+            ('expired', 'Verification Expired'),
+        ],
+        default='pending'
+    )
+    verification_attempts = models.IntegerField(default=0)
+    last_verification_attempt = models.DateTimeField(null=True, blank=True)
+    registered_at = models.DateTimeField(auto_now_add=True)
+    verified_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'user_registration_info'
+        indexes = [
+            models.Index(fields=['registration_status']),
+            models.Index(fields=['registered_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.email} - {self.registration_status}"
+
+
+class UserDeviceInfo(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    device_type = models.CharField(max_length=50)  # mobile, desktop, tablet
+    os_type = models.CharField(max_length=50)
+    browser = models.CharField(max_length=50)
+    ip_address = models.GenericIPAddressField()
+    last_used = models.DateTimeField(auto_now=True)
+    first_used = models.DateTimeField(auto_now_add=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = 'user_device_info'
+        indexes = [
+            models.Index(fields=['user', 'is_active']),
+            models.Index(fields=['ip_address']),
+        ]
