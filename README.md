@@ -42,29 +42,60 @@ This project implements a authentication system designed to handle user registra
 
 ---
 
-## **Setup and Installation**
 
-1. Clone the repository:
+## **Setup and Installation**
+## For Dev Branch only
+
+1. **Generate SSH Keys from VM**:
    ```bash
-   git clone <repository-url>
-   cd <project-directory>
+   ssh-keygen -t ed25519 -C "rolando.tactay@algorithmx.com"
    ```
 
-2. Install dependencies:
+2. **Add the SSH Key to Your GitHub Account**:
+   - Copy the public key (`~/.ssh/id_ed25519.pub`) and add it to your GitHub user account under **Settings > SSH and GPG keys**.
+
+3. **Clone the Repository**:
+   ```bash
+   git clone --branch develop --single-branch git@github.com:AlgorithmxTech/DIY-Internal-Backend.git
+   cd DIY-Internal-Backend
+   ```
+
+4. **Create a `.env` File**:
+   - Inside the project folder, create a `.env` file and configure the required environment variables. Example:
+     ```
+     DEBUG=True
+     SECRET_KEY=your-secret-key
+     DATABASE_URL=your-database-url
+     ```
+
+5. **Create a Virtual Environment**:
+   ```bash
+   python -m venv venv
+   ```
+
+6. **Activate the Virtual Environment**:
+   - **Linux/MacOS**:
+     ```bash
+     source venv/bin/activate
+     ```
+   - **Windows (Command Prompt)**:
+     ```cmd
+     venv\Scripts\activate
+     ```
+   - **Windows (PowerShell)**:
+     ```powershell
+     .\venv\Scripts\Activate.ps1
+     ```
+
+7. **Install Required Packages**:
    ```bash
    pip install -r requirements.txt
    ```
 
-3. Run database migrations:
+8. **Run the Server (Debug Mode is Enabled)**:
    ```bash
-   python manage.py migrate
+   python3 manage.py runserver 0.0.0.0:8000
    ```
-
-4. Start the development server:
-   ```bash
-   python manage.py runserver
-   ```
-
 ---
 
 ## **Technologies Used**
