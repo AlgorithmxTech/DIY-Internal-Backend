@@ -27,7 +27,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv('DEBUG')
+DEBUG = False
 
 ALLOWED_HOSTS = ['*']  # Replace with your actual IP
 
@@ -42,6 +42,8 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
 
+    'corsheaders',
+
      # Third party apps
     'rest_framework',
     'rest_framework_simplejwt',
@@ -51,6 +53,8 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
+
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -106,13 +110,15 @@ REST_FRAMEWORK = {
 
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(hours=2),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=5),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
     'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': True,
     'UPDATE_LAST_LOGIN': True,
+
     'ALGORITHM': 'HS256',
     'SIGNING_KEY': SECRET_KEY,
+    
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
 
@@ -162,10 +168,8 @@ STATICFILES_DIRS = [
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
-FRONTEND_URL = 'http://localhost:3000'  # Change this to your React frontend URL
-
 # Add this to your settings.py
-BACKEND_URL = os.getenv('BACKEND_URL', 'http://localhost:8000')
+BACKEND_URL = os.getenv('BACKEND_URL')
 
 # Email settings
 if DEBUG:
@@ -178,5 +182,37 @@ else:
     EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
     EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
 
-DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'n58405745@gmail.com')
-FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL')
+FRONTEND_URL = os.getenv('FRONTEND_URL')
+
+
+CORS_ORIGIN_ALLOW_ALL = True
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
+
+
+CORS_ORIGIN_WHITELIST = [
+    'http://10.0.0.8:5173',
+    'http://localhost:5173',  # React development server
+    'http://127.0.0.1:5173',  # React development server
+    'http://192.168.8.149:8000',
+    'http://0.0.0.0:5173',
+]
