@@ -13,6 +13,7 @@ from django.conf import settings
 from user_agents import parse
 from django.core import signing
 from django.shortcuts import redirect
+from django.http import HttpResponseRedirect
 
 from .utils import send_verification_email
 from .serializers import (
@@ -317,7 +318,7 @@ class VerifyEmailConfirmView(APIView):
             user = User.objects.get(id=data['user_id'], email=data['email'])
             
             if user.is_email_verified:
-                return redirect(f"{settings.FRONTEND_URL}/verification/already-verified")
+                return HttpResponseRedirect(f"http://{settings.FRONTEND_URL}/verification/already-verified")
             
             user.is_email_verified = True
             user.save()
@@ -329,13 +330,13 @@ class VerifyEmailConfirmView(APIView):
             )
             
             # Redirect to frontend success page
-            return redirect(f"{settings.FRONTEND_URL}/verification/success")
+            return HttpResponseRedirect(f"{settings.FRONTEND_URL}/verification/success")
             
         except (signing.BadSignature, signing.SignatureExpired):
             # Redirect to frontend error page
-            return redirect(f"{settings.FRONTEND_URL}/verification/error")
+            return HttpResponseRedirect(f"http://{settings.FRONTEND_URL}/verification/error")
         except User.DoesNotExist:
-            return redirect(f"{settings.FRONTEND_URL}/verification/error")
+            return HttpResponseRedirect(f"http://{settings.FRONTEND_URL}/verification/error")
 
 
 # New endpoint for changing password while logged in
