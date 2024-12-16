@@ -78,41 +78,34 @@ class ResetPasswordSerializer(serializers.Serializer):
         PasswordResetToken.objects.filter(user=user).delete()
         return user
 
-class ChangePasswordView(APIView):
-    permission_classes = (IsAuthenticated,)
-    serializer_class = ChangePasswordSerializer
+class ChangePasswordSerializer(serializers.Serializer):
+    current_password = serializers.CharField(required=True)
+    new_password = serializers.CharField(required=True, min_length=8)
+    confirm_password = serializers.CharField(required=True)
 
-    def post(self, request):
-        serializer = self.serializer_class(data=request.data)
-        
-        if serializer.is_valid():
-            user = request.user
+    def validate(self, data):
+        # Verify new passwords match
+        if data['new_password'] != data['confirm_password']:
+            raise serializers.ValidationError({
+                'confirm_password': "New passwords don't match."
+            })
             
-            # Verify current password
-            if not user.check_password(serializer.validated_data['current_password']):
-                return Response({
-                    'current_password': ['Current password is incorrect.']
-                }, status=status.HTTP_400_BAD_REQUEST)
+        # Check if new password is same as old password
+        if data['current_password'] == data['new_password']:
+            raise serializers.ValidationError({
+                'new_password': "New password must be different from current password."
+            })
+
+        # You can add more password validation here
+        # Example: password complexity requirements
+        if not any(char.isdigit() for char in data['new_password']):
+            raise serializers.ValidationError({
+                'new_password': "Password must contain at least one number."
+            })
             
-            try:
-                # Set new password
-                user.set_password(serializer.validated_data['new_password'])
-                user.save()
-                
-                # Optional: Log the password change
-                UserRegistrationInfo.objects.filter(user=user).update(
-                    last_password_change=timezone.now()
-                )
-                
-                return Response({
-                    'message': 'Password changed successfully.',
-                    'status': 'success'
-                })
-                
-            except Exception as e:
-                return Response({
-                    'message': 'An error occurred while changing password.',
-                    'error': str(e)
-                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        if not any(char.isupper() for char in data['new_password']):
+            raise serializers.ValidationError({
+                'new_password': "Password must contain at least one uppercase letter."
+            })
+
+        return data
