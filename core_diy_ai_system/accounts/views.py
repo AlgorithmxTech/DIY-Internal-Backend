@@ -1,4 +1,6 @@
 from django.shortcuts import render
+from django.template.loader import render_to_string
+from django.core.mail import send_mail 
 from rest_framework import status, generics
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -152,45 +154,45 @@ class CustomTokenObtainPairView(TokenObtainPairView):
                 status=status.HTTP_401_UNAUTHORIZED
             )
 
-class VerifyEmailView(APIView):
-    permission_classes = (AllowAny,)
+# class VerifyEmailView(APIView):
+#     permission_classes = (AllowAny,)
 
-    def post(self, request):
-        token = request.data.get('token')
-        try:
-            verification = EmailVerificationToken.objects.get(
-                token=token,
-                expires_at__gt=timezone.now()
-            )
-            user = verification.user
-            user.is_email_verified = True
-            user.save()
+#     def post(self, request):
+#         token = request.data.get('token')
+#         try:
+#             verification = EmailVerificationToken.objects.get(
+#                 token=token,
+#                 expires_at__gt=timezone.now()
+#             )
+#             user = verification.user
+#             user.is_email_verified = True
+#             user.save()
 
-            # Update registration info
-            registration_info = UserRegistrationInfo.objects.get(user=user)
-            registration_info.registration_status = 'verified'
-            registration_info.verified_at = timezone.now()
-            registration_info.save()
+#             # Update registration info
+#             registration_info = UserRegistrationInfo.objects.get(user=user)
+#             registration_info.registration_status = 'verified'
+#             registration_info.verified_at = timezone.now()
+#             registration_info.save()
 
-            verification.delete()
+#             verification.delete()
 
-            return Response({'message': 'Email verified successfully'})
+#             return Response({'message': 'Email verified successfully'})
 
-        except EmailVerificationToken.DoesNotExist:
-            # Track failed verification attempt
-            try:
-                verification = EmailVerificationToken.objects.get(token=token)
-                registration_info = UserRegistrationInfo.objects.get(user=verification.user)
-                registration_info.verification_attempts += 1
-                registration_info.last_verification_attempt = timezone.now()
-                registration_info.save()
-            except (EmailVerificationToken.DoesNotExist, UserRegistrationInfo.DoesNotExist):
-                pass
+#         except EmailVerificationToken.DoesNotExist:
+#             # Track failed verification attempt
+#             try:
+#                 verification = EmailVerificationToken.objects.get(token=token)
+#                 registration_info = UserRegistrationInfo.objects.get(user=verification.user)
+#                 registration_info.verification_attempts += 1
+#                 registration_info.last_verification_attempt = timezone.now()
+#                 registration_info.save()
+#             except (EmailVerificationToken.DoesNotExist, UserRegistrationInfo.DoesNotExist):
+#                 pass
                 
-            return Response(
-                {'error': 'Invalid or expired token'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+#             return Response(
+#                 {'error': 'Invalid or expired token'},
+#                 status=status.HTTP_400_BAD_REQUEST
+#             )
 
 class UserProfileView(generics.RetrieveUpdateAPIView):
     serializer_class = UserSerializer
@@ -203,33 +205,84 @@ class ForgotPasswordView(APIView):
     permission_classes = (AllowAny,)
     serializer_class = ForgotPasswordSerializer
 
+    def send_password_reset_email(self, user, reset_link):
+        """Send password reset email to user"""
+        context = {
+            'user': user,
+            'reset_link': reset_link
+        }
+
+        # Render email templates
+        html_message = render_to_string(
+            'accounts/emails/password_reset.html', 
+            context
+        )
+        plain_message = render_to_string(
+            'accounts/emails/password_reset.txt', 
+            context
+        )
+
+        try:
+            # Send email
+            send_mail(
+                subject='Reset Your Password',
+                message=plain_message,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[user.email],
+                html_message=html_message,
+                fail_silently=False,
+            )
+            return True, None
+        except Exception as e:
+            return False, str(e)
+
     def post(self, request):
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
         
         email = serializer.validated_data['email']
-        user = User.objects.get(email=email)
         
-        # Generate unique token
-        token = uuid.uuid4()
-        
-        # Save reset token
-        PasswordResetToken.objects.filter(user=user).delete()  # Remove existing tokens
-        reset_token = PasswordResetToken.objects.create(
-            user=user,
-            token=token,
-            expires_at=timezone.now() + timedelta(hours=24)
-        )
-        
-        # Generate reset link
-        reset_link = f"{settings.FRONTEND_URL}/reset-password/{token}"
-        
-        # Here you would typically send an email with the reset link
-        # For development, we'll return the link in the response
-        return Response({
-            'message': 'Password reset link has been sent to your email.',
-            'reset_link': reset_link  # Remove this in production
-        })
+        try:
+            user = User.objects.get(email=email)
+            
+            # Generate unique token
+            token = str(uuid.uuid4())
+            
+            # Save reset token
+            PasswordResetToken.objects.filter(user=user).delete()
+            reset_token = PasswordResetToken.objects.create(
+                user=user,
+                token=token,
+                expires_at=timezone.now() + timedelta(hours=24)
+            )
+            
+            # Generate reset link
+            reset_link = f"{settings.FRONTEND_URL}/reset-password/{token}"
+            
+            # Send email
+            email_sent, error = self.send_password_reset_email(user, reset_link)
+            
+            response_data = {
+                'message': 'Password reset instructions have been sent to your email.'
+            }
+            
+            # Include debug info in development
+            if settings.DEBUG:
+                response_data['debug_info'] = {
+                    'reset_link': reset_link,
+                    'email_status': 'sent' if email_sent else 'failed',
+                }
+                if not email_sent:
+                    response_data['debug_info']['error'] = error
+            
+            return Response(response_data)
+            
+        except User.DoesNotExist:
+            # For security, use the same message even if email doesn't exist
+            return Response({
+                'message': 'Password reset instructions have been sent to your email if an account exists with this email address.'
+            })
+
 
 class ResetPasswordView(APIView):
     permission_classes = (AllowAny,)
@@ -283,3 +336,24 @@ class VerifyEmailConfirmView(APIView):
             return redirect(f"{settings.FRONTEND_URL}/verification/error")
         except User.DoesNotExist:
             return redirect(f"{settings.FRONTEND_URL}/verification/error")
+
+
+# New endpoint for changing password while logged in
+class ChangePasswordView(APIView):
+    permission_classes = (IsAuthenticated,)  # Only logged-in users
+    
+    def post(self, request):
+        serializer = ChangePasswordSerializer(data=request.data)
+        if serializer.is_valid():
+            # Access authenticated user directly
+            user = request.user
+            # Check old password
+            if user.check_password(serializer.data.get('current_password')):
+                user.set_password(serializer.data.get('new_password'))
+                user.save()
+                return Response({
+                    'message': 'Password successfully changed'
+                })
+            return Response({
+                'error': 'Incorrect current password'
+            }, status=status.HTTP_400_BAD_REQUEST)

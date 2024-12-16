@@ -77,3 +77,35 @@ class ResetPasswordSerializer(serializers.Serializer):
         # Delete the used token
         PasswordResetToken.objects.filter(user=user).delete()
         return user
+
+class ChangePasswordSerializer(serializers.Serializer):
+    current_password = serializers.CharField(required=True)
+    new_password = serializers.CharField(required=True, min_length=8)
+    confirm_password = serializers.CharField(required=True)
+
+    def validate(self, data):
+        # Verify new passwords match
+        if data['new_password'] != data['confirm_password']:
+            raise serializers.ValidationError({
+                'confirm_password': "New passwords don't match."
+            })
+            
+        # Check if new password is same as old password
+        if data['current_password'] == data['new_password']:
+            raise serializers.ValidationError({
+                'new_password': "New password must be different from current password."
+            })
+
+        # You can add more password validation here
+        # Example: password complexity requirements
+        if not any(char.isdigit() for char in data['new_password']):
+            raise serializers.ValidationError({
+                'new_password': "Password must contain at least one number."
+            })
+            
+        if not any(char.isupper() for char in data['new_password']):
+            raise serializers.ValidationError({
+                'new_password': "Password must contain at least one uppercase letter."
+            })
+
+        return data
