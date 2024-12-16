@@ -77,3 +77,42 @@ class ResetPasswordSerializer(serializers.Serializer):
         # Delete the used token
         PasswordResetToken.objects.filter(user=user).delete()
         return user
+
+class ChangePasswordView(APIView):
+    permission_classes = (IsAuthenticated,)
+    serializer_class = ChangePasswordSerializer
+
+    def post(self, request):
+        serializer = self.serializer_class(data=request.data)
+        
+        if serializer.is_valid():
+            user = request.user
+            
+            # Verify current password
+            if not user.check_password(serializer.validated_data['current_password']):
+                return Response({
+                    'current_password': ['Current password is incorrect.']
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            try:
+                # Set new password
+                user.set_password(serializer.validated_data['new_password'])
+                user.save()
+                
+                # Optional: Log the password change
+                UserRegistrationInfo.objects.filter(user=user).update(
+                    last_password_change=timezone.now()
+                )
+                
+                return Response({
+                    'message': 'Password changed successfully.',
+                    'status': 'success'
+                })
+                
+            except Exception as e:
+                return Response({
+                    'message': 'An error occurred while changing password.',
+                    'error': str(e)
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

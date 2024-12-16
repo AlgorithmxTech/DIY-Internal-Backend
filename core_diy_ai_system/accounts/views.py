@@ -336,3 +336,24 @@ class VerifyEmailConfirmView(APIView):
             return redirect(f"{settings.FRONTEND_URL}/verification/error")
         except User.DoesNotExist:
             return redirect(f"{settings.FRONTEND_URL}/verification/error")
+
+
+# New endpoint for changing password while logged in
+class ChangePasswordView(APIView):
+    permission_classes = (IsAuthenticated,)  # Only logged-in users
+    
+    def post(self, request):
+        serializer = ChangePasswordSerializer(data=request.data)
+        if serializer.is_valid():
+            # Access authenticated user directly
+            user = request.user
+            # Check old password
+            if user.check_password(serializer.data.get('current_password')):
+                user.set_password(serializer.data.get('new_password'))
+                user.save()
+                return Response({
+                    'message': 'Password successfully changed'
+                })
+            return Response({
+                'error': 'Incorrect current password'
+            }, status=status.HTTP_400_BAD_REQUEST)
